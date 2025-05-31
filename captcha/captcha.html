@@ -112,17 +112,10 @@
     const grid = document.getElementById('checkboxGrid');
     const checkPath = "M10 22 Q15 24 19 28 Q25 14 33 6";
 
-    const columns = Array.from({ length: 6 }, (_, i) => i);
-	shuffle(columns)
-	
-	initial_green = [];
-	
-	for (col of columns.slice(0,2)) {
-	  for (let row=0; row < 4; row++) {
-	    initial_green.push(col + 6*row);
-	  }
-	}
-	
+    const range25 = Array.from({ length: 25 }, (_, i) => i);
+	shuffle(range25);
+	initial_green = range25.slice(0,8); 
+    
     for (let i = 0; i < 24; i++) {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
