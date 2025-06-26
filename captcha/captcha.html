@@ -15,38 +15,348 @@
     }
 
     #captcha-container {
-      background: white;
+      background: #fff;
       width: 390px;
       height: 300px;
+	  border: 0px;
+    }
+	
+    .container {
+      padding: 15px;
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(6, 50px);
+      grid-template-rows: repeat(4, 50px);
+      gap: 10px;
     }
 
-    /* Your style here... */
+    .container input[type="checkbox"] {
+      width: 50px;
+      height: 50px;
+      position: relative;
+      appearance: none;
+      border: 5px solid blue;
+	  transition: border 2.2s;
+      border-radius: 0;
+      cursor: pointer;
+      outline: none;
+      background-color: transparent;
+    }
+
+    .message {
+      position: absolute;
+      top: 260px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+	  font-size: 150%;
+      color: green;
+      font-weight: bold;
+    }		
+
+    svg.checkmark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 50px;
+      height: 50px;
+      stroke: #111111;
+      stroke-width: 5;
+      fill: none;
+      pointer-events: none;
+      transform: translate(calc(-50% + 2px), calc(-50% + 7px));
+    }
+
+    path.check-path {
+      stroke-dasharray: 120;
+      stroke-dashoffset: 120;
+      transition: stroke-dashoffset 2s ease;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    input[type="checkbox"]:checked + svg.checkmark path.check-path {
+      stroke-dashoffset: 0;
+      transition-duration: 10s;
+    }
+	
+	.dot {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background-color: #FDFDFD;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+	
+	.hidden {
+      opacity: 0;
+    }
+	
   </style>
 </head>
 
 <body>
   <div id="captcha-container">
-    <!-- Add your CAPTCHA here: -->
-    Hello world!
-
-    <!-- We've added a sample button. Feel free to remove it: -->
-    <button id="solve">
-      Solve!
-    </button>
+  
+  <div class="message" id="message">Check all the green boxes</div>
+  <div class="container" id="checkboxGrid"></div>
+ 
   </div>
-
   <script type="text/javascript">
-    (function(window, document){
-      // This is how you tell the parent window that the CAPTCHA was successful.
-      function captchaSuccess() {
-        window.top.postMessage("success", '*');
+    (function(window, document){  
+	
+    last_click = null;
+	
+    const grid = document.getElementById('checkboxGrid');
+    const checkPath = "M10 22 Q15 24 19 28 Q25 14 33 6";
+
+    const range25 = Array.from({ length: 25 }, (_, i) => i);
+	shuffle(range25);
+	initial_green = range25.slice(0,8); 
+    
+    for (let i = 0; i < 24; i++) {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+	  checkbox.id = 'box'+i;
+	  
+	  if (initial_green.includes(i))  {
+	      checkbox.style.borderColor = "green";
+	  }
+
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('class', 'checkmark');
+      svg.setAttribute('viewBox', '0 0 40 40');
+      svg.setAttribute('aria-hidden', 'true');
+
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', checkPath);
+      path.setAttribute('class', 'check-path');
+
+      svg.appendChild(path);
+
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'relative';
+      wrapper.style.width = '50px';
+      wrapper.style.height = '50px';
+
+      wrapper.appendChild(checkbox);
+      wrapper.appendChild(svg);
+      grid.appendChild(wrapper);
+	  
+	  //////////////////////////////////////////////
+
+	  checkbox.addEventListener('change', () => {
+	  
+	    const now = Date.now();
+		const box = event.target;
+		
+		if (last_click === null) {
+		  speed = 10000;
+		}
+		else {
+		  speed = now - last_click;
+		}
+		
+		last_click = now;
+	    
+		if (speed < 2200) {
+		  reset();
+		  display_message('red', 'Don\'t be in such a hurry!', 3000);
+          fail_noise();
+		}
+		else if (box.style.borderColor != 'green') {
+		  reset();
+		  display_message('blue', 'You clicked a blue box!', 3000);
+          fail_noise();		
+		}
+		else {
+		  let count = count_checked();
+		  console.log('count_checked = ' + count);
+		  
+          if (box.checked) {
+		    if (Math.random() < 0.15) {
+			  // Ignore click
+			  box.checked = false;
+			  count -= 1;
+			  // Don't penalise fast re-click
+			  last_click = now - 3000;
+			}
+			else {
+			
+              path.style.transition = 'stroke-dashoffset 10s';
+              path.style.strokeDashoffset = '0';
+
+              if (count < 10) {
+			    for (to_change of n_random_unchecked((count+2) % 3)) {
+				  console.log('change '+to_change);
+				  change_colour(to_change);
+				}
+			  }
+			}
+          } else {
+            path.style.transition = 'none';
+            path.style.strokeDashoffset = '120';
+            path.getBoundingClientRect();
+            path.style.transition = 'stroke-dashoffset 2s ease';
+          }
+		  
+		  // Have all green boxes been checked?
+	      let green = count_green();
+		  if (count == green) {
+			setTimeout(() => {
+			  window.top.postMessage("success", '*');
+		    }, 2200);
+		  }		  
+		  
+		}
+      });
+    }
+	
+	function reset() {
+
+      const checkboxes = document.querySelectorAll('#checkboxGrid input[type="checkbox"]');
+      const paths = document.querySelectorAll('#checkboxGrid path.check-path');
+
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+
+      paths.forEach(path => {
+        path.style.transition = 'none';
+        path.style.strokeDashoffset = '120';
+        path.getBoundingClientRect();
+        path.style.transition = 'stroke-dashoffset 2s ease';
+      });
+	}
+	
+	function n_random_unchecked(n) {
+	    console.log('n = '+n);
+	    unchecked = [];
+	    for (let i = 0; i < 24; i++) {
+		  if (!document.getElementById('box'+i).checked) {
+		    unchecked.push('box'+i);
+			
+		  }
+		}
+		shuffle(unchecked);
+
+        if (unchecked.length > n) {
+		  return unchecked.slice(0, n);
+		}
+		else {
+		  return unchecked;
+		}
+	}
+  
+    function change_colour(id) {
+	    box = document.getElementById(id);
+		if (box.style.borderColor == 'green') {
+		    box.style.borderColor = 'blue';
+		}
+	
+        else {
+		    box.style.borderColor = 'green';
+		}
+	}
+	
+	function count_checked() {
+	  count = 0;
+	  for (let i = 0; i < 24; i++) {
+	      if (document.getElementById('box'+i).checked) {
+		      count += 1;
+		  }
+	  }
+	  return count;
+	}
+	
+	function count_green() {
+	  count = 0;
+	  for (let i = 0; i < 24; i++) {
+	      if (document.getElementById('box'+i).style.borderColor == 'green') {
+		      count += 1;
+		  }
+	  }
+	  return count;
+	}	
+	
+	const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+	function fail_noise() {
+	audioCtx.resume().then(() => {
+		const oscillator = audioCtx.createOscillator();
+		const gainNode = audioCtx.createGain();
+
+		const bufferTime = 0.05; 
+		const now = audioCtx.currentTime + bufferTime;
+
+		gainNode.gain.setValueAtTime(1, now);
+		gainNode.gain.linearRampToValueAtTime(0, now + 0.5);
+
+		oscillator.type = 'sine';
+		oscillator.frequency.setValueAtTime(400, now);
+		oscillator.frequency.linearRampToValueAtTime(300, now + 0.2);
+		oscillator.frequency.linearRampToValueAtTime(400, now + 0.3);
+		oscillator.frequency.linearRampToValueAtTime(300, now + 0.4);
+		oscillator.frequency.linearRampToValueAtTime(400, now + 0.5);
+
+		oscillator.connect(gainNode);
+		gainNode.connect(audioCtx.destination);
+
+		oscillator.start(now);
+		oscillator.stop(now + 0.5);
+	  });
+	}
+
+
+	function display_message(colour, text, length) {
+	  message = document.getElementById('message');
+	  message.style.color = colour;
+	  message.innerHTML = text;
+	  
+      setTimeout(() => {
+        message = document.getElementById('message');
+		message.style.color = 'green';
+        message.innerHTML = 'Check all the green boxes';
+      }, 3000);	 	
+	}
+	
+	function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
       }
+    }
 
-      // Your CAPTCHA code goes here, we've added a simple example below:
-      document.getElementById('solve')
-           .addEventListener('click', () => captchaSuccess());
+    const dotSpacing = 60;
+    const dots = [];
 
-    })(window, document);
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 5; col++) {
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.left = `${(col + 1) * dotSpacing + 8}px`;
+        dot.style.top = `${(row + 1) * dotSpacing + 7}px`;
+        grid.appendChild(dot);
+        dots.push(dot);
+      }
+    }
+	
+    function flicker(dot) {
+      const interval = Math.random() * 2000 + 500;
+      setTimeout(() => {
+        dot.classList.toggle('hidden');
+        flicker(dot); 
+      }, interval);
+    }
+
+    dots.forEach(dot => flicker(dot));
+	
+	})(window, document);  
   </script>
 </body>
 </html>
